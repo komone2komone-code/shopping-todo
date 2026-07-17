@@ -1,0 +1,375 @@
+/* 変数：テーマ色と余白 */
+:root {
+  --bg: #f7f7f7;
+  --surface: #ffffff;
+  --text: #222222;
+  --text-muted: #666666;
+  --border: #e0e0e0;
+  --shopping: #e8f4fc;
+  --shopping-accent: #4a9fd8;
+  --todo: #fce8f0;
+  --todo-accent: #d86a9a;
+  --memo: #fff8e8;
+  --memo-accent: #c9a227;
+  --danger: #e05555;
+  --radius: 12px;
+  --tap: 48px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100%;
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP",
+    Meiryo, sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  overflow-x: hidden;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: 560px;
+  margin: 0 auto;
+  background: var(--surface);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: calc(12px + var(--safe-top)) 16px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--shopping);
+}
+
+body[data-mode="todo"] .header {
+  background: var(--todo);
+}
+
+body[data-mode="memo"] .header {
+  background: var(--memo);
+}
+
+.header h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+body[data-mode="memo"] .header h1 {
+  margin-bottom: 0;
+}
+
+.add-form {
+  display: flex;
+  gap: 8px;
+}
+
+body[data-mode="memo"] .add-form {
+  display: none;
+}
+
+.item-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--tap);
+  padding: 0 14px;
+  font-size: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.btn-voice {
+  flex-shrink: 0;
+  width: var(--tap);
+  height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  cursor: pointer;
+}
+
+.btn-voice.listening {
+  background: #fff0f3;
+  border-color: #ff8fab;
+}
+
+.btn-voice:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.icon-mic {
+  width: 24px;
+  height: 24px;
+}
+
+.btn-add {
+  flex-shrink: 0;
+  min-width: 72px;
+  height: var(--tap);
+  padding: 0 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--shopping-accent);
+  cursor: pointer;
+}
+
+body[data-mode="todo"] .btn-add {
+  background: var(--todo-accent);
+}
+
+.voice-status {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.voice-status.hidden {
+  display: none;
+}
+
+.voice-status.error {
+  color: var(--danger);
+}
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px calc(72px + var(--safe-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+.list-view.hidden,
+.memo-view.hidden {
+  display: none;
+}
+
+.item-list {
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: var(--radius);
+  background: var(--shopping);
+  word-break: break-word;
+}
+
+body[data-mode="todo"] .item,
+[data-theme="todo"] .item {
+  background: var(--todo);
+}
+
+.item.done .item-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.item-check {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  accent-color: var(--shopping-accent);
+}
+
+body[data-mode="todo"] .item-check {
+  accent-color: var(--todo-accent);
+}
+
+.item-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.05rem;
+}
+
+.btn-delete {
+  flex-shrink: 0;
+  min-width: var(--tap);
+  height: var(--tap);
+  padding: 0 12px;
+  font-size: 14px;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--danger);
+  cursor: pointer;
+}
+
+.empty-message {
+  display: none;
+  padding: 32px 8px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-message.visible {
+  display: block;
+}
+
+.btn-clear {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: 16px;
+  padding: 12px;
+  font-size: 15px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  cursor: pointer;
+}
+
+.btn-clear:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.memo-view {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 180px - var(--safe-top) - var(--safe-bottom));
+}
+
+.memo-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.memo-text {
+  flex: 1;
+  width: 100%;
+  min-height: 50vh;
+  padding: 14px;
+  font-size: 16px;
+  line-height: 1.6;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  resize: vertical;
+}
+
+.memo-text:focus {
+  outline: 2px solid var(--memo-accent);
+  outline-offset: 1px;
+}
+
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  max-width: 560px;
+  margin: 0 auto;
+  padding-bottom: var(--safe-bottom);
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
+
+.tab-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  padding: 6px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.tab-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.tab-label {
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.tab-btn.active {
+  color: var(--shopping-accent);
+  background: var(--shopping);
+}
+
+body[data-mode="todo"] .tab-btn.active {
+  color: var(--todo-accent);
+  background: var(--todo);
+}
+
+body[data-mode="memo"] .tab-btn.active {
+  color: var(--memo-accent);
+  background: var(--memo);
+}
+
+@media (min-width: 561px) {
+  body {
+    background: #ececec;
+    padding: 24px 0;
+  }
+
+  .app {
+    min-height: calc(100dvh - 48px);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+  }
+
+  .tab-bar {
+    position: sticky;
+    border-radius: 0 0 16px 16px;
+  }
+
+  .main {
+    padding-bottom: 16px;
+  }
+
+  .memo-view {
+    min-height: 420px;
+  }
+}
