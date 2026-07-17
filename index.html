@@ -73,6 +73,26 @@
           placeholder="思いついたことを自由に書いてください"
         ></textarea>
         <button type="button" id="clear-memo" class="btn-clear">メモを消去</button>
+
+        <section class="backup-section" aria-labelledby="backup-title">
+          <h2 id="backup-title" class="backup-title">データのバックアップ</h2>
+          <p class="backup-desc">買い物・TODO・メモをまとめて保存・復元できます</p>
+          <div class="backup-actions">
+            <button type="button" id="backup-export" class="btn-backup">
+              バックアップを書き出す
+            </button>
+            <button type="button" id="backup-import" class="btn-backup">
+              バックアップを読み込む
+            </button>
+          </div>
+          <input
+            type="file"
+            id="backup-file"
+            class="backup-file"
+            accept="application/json,.json"
+          >
+          <p id="backup-message" class="backup-message hidden" role="status"></p>
+        </section>
       </section>
     </main>
 

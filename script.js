@@ -2,6 +2,8 @@
 const STORAGE_SHOPPING = "shoppingItems";
 const STORAGE_TODO = "todoItems";
 const STORAGE_MEMO = "memoText";
+const STORAGE_TEMP_BACKUP = "backupRestoreTemp";
+const BACKUP_VERSION = 1;
 
 // ===== DOM参照 =====
 const pageTitle = document.getElementById("page-title");
@@ -25,6 +27,10 @@ const voiceBtnList = document.getElementById("voice-btn-list");
 const voiceBtnMemo = document.getElementById("voice-btn-memo");
 const voiceStatus = document.getElementById("voice-status");
 const voiceStatusMemo = document.getElementById("voice-status-memo");
+const backupExportBtn = document.getElementById("backup-export");
+const backupImportBtn = document.getElementById("backup-import");
+const backupFileInput = document.getElementById("backup-file");
+const backupMessage = document.getElementById("backup-message");
 
 // ===== 状態 =====
 let mode = "shopping";
@@ -232,6 +238,208 @@ function clearMemo() {
   saveMemo("");
 }
 
+// ===== バックアップ =====
+function formatDateForFilename(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function showBackupMessage(message, type) {
+  backupMessage.textContent = message;
+  backupMessage.classList.remove("hidden", "error", "success");
+  if (type === "error") backupMessage.classList.add("error");
+  if (type === "success") backupMessage.classList.add("success");
+}
+
+function hideBackupMessage() {
+  backupMessage.classList.add("hidden");
+  backupMessage.classList.remove("error", "success");
+  backupMessage.textContent = "";
+}
+
+function normalizeItems(items) {
+  if (!Array.isArray(items)) return null;
+  const result = [];
+  for (const item of items) {
+    if (!item || typeof item !== "object") return null;
+    if (typeof item.text !== "string") return null;
+    result.push({
+      id:
+        typeof item.id === "string" && item.id
+          ? item.id
+          : String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7),
+      text: item.text,
+      done: Boolean(item.done),
+    });
+  }
+  return result;
+}
+
+function validateBackupData(data) {
+  if (!data || typeof data !== "object") {
+    return { ok: false, message: "このファイルはバックアップとして使えません。" };
+  }
+  if (!("shopping" in data) || !("todo" in data) || !("memo" in data)) {
+    return {
+      ok: false,
+      message: "このアプリで作ったバックアップではありません。買い物・TODO・メモが入ったファイルを選んでください。",
+    };
+  }
+  if (typeof data.version !== "number" || data.version !== BACKUP_VERSION) {
+    return {
+      ok: false,
+      message: "対応していないバックアップ形式です。このアプリで書き出したファイルを選んでください。",
+    };
+  }
+  const shopping = normalizeItems(data.shopping);
+  const todo = normalizeItems(data.todo);
+  if (shopping === null || todo === null) {
+    return {
+      ok: false,
+      message: "ファイルの内容が壊れているか、形式が正しくありません。",
+    };
+  }
+  if (typeof data.memo !== "string") {
+    return {
+      ok: false,
+      message: "メモのデータ形式が正しくありません。",
+    };
+  }
+  return {
+    ok: true,
+    shopping,
+    todo,
+    memo: data.memo,
+  };
+}
+
+function exportBackup() {
+  hideBackupMessage();
+  const now = new Date();
+  const payload = {
+    version: BACKUP_VERSION,
+    exportedAt: now.toISOString(),
+    shopping: shoppingItems,
+    todo: todoItems,
+    memo: memoText.value,
+  };
+
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const filename = `shopping-todo-backup-${formatDateForFilename(now)}.json`;
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+
+  showBackupMessage(`「${filename}」を書き出しました。`, "success");
+}
+
+function saveTempBackup() {
+  const snapshot = {
+    shopping: shoppingItems,
+    todo: todoItems,
+    memo: memoText.value,
+    savedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(STORAGE_TEMP_BACKUP, JSON.stringify(snapshot));
+}
+
+function applyImportedData(shopping, todo, memo) {
+  shoppingItems = shopping;
+  todoItems = todo;
+  memoContent = memo;
+  memoText.value = memo;
+
+  saveItems(STORAGE_SHOPPING, shoppingItems);
+  saveItems(STORAGE_TODO, todoItems);
+  saveMemo(memoContent);
+
+  // 買い物・TODO一覧を更新（メモ画面でも裏で更新）
+  renderList(shoppingListEl, shoppingEmpty, shoppingItems, "購入済み");
+  clearShoppingBtn.disabled = !shoppingItems.some((i) => i.done);
+  renderList(todoListEl, todoEmpty, todoItems, "完了");
+  clearTodoBtn.disabled = !todoItems.some((i) => i.done);
+}
+
+function restoreFromTempBackup() {
+  try {
+    const raw = localStorage.getItem(STORAGE_TEMP_BACKUP);
+    if (!raw) return false;
+    const snapshot = JSON.parse(raw);
+    const shopping = normalizeItems(snapshot.shopping);
+    const todo = normalizeItems(snapshot.todo);
+    if (shopping === null || todo === null || typeof snapshot.memo !== "string") {
+      return false;
+    }
+    applyImportedData(shopping, todo, snapshot.memo);
+    return true;
+  } catch (e) {
+    console.warn("一時バックアップ復元失敗:", e);
+    return false;
+  }
+}
+
+function importBackupFromFile(file) {
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    let parsed;
+    try {
+      parsed = JSON.parse(String(reader.result));
+    } catch (e) {
+      showBackupMessage(
+        "JSONとして読み込めませんでした。このアプリで書き出したバックアップファイルを選んでください。",
+        "error"
+      );
+      return;
+    }
+
+    const validated = validateBackupData(parsed);
+    if (!validated.ok) {
+      showBackupMessage(validated.message, "error");
+      return;
+    }
+
+    const ok = confirm(
+      "現在の買い物・TODO・メモを、バックアップの内容で置き換えます。よろしいですか？"
+    );
+    if (!ok) {
+      showBackupMessage("読み込みをキャンセルしました。", "success");
+      return;
+    }
+
+    try {
+      // 読み込み直前に現在データを一時保存
+      saveTempBackup();
+      applyImportedData(validated.shopping, validated.todo, validated.memo);
+      showBackupMessage("バックアップを読み込みました。", "success");
+    } catch (e) {
+      console.warn("バックアップ読み込み失敗:", e);
+      restoreFromTempBackup();
+      showBackupMessage(
+        "読み込みに失敗したため、現在のデータは変更していません。",
+        "error"
+      );
+    }
+  };
+
+  reader.onerror = () => {
+    showBackupMessage("ファイルの読み取りに失敗しました。もう一度お試しください。", "error");
+  };
+
+  reader.readAsText(file, "UTF-8");
+}
+
 // ===== 音声入力 =====
 function initSpeech() {
   if (!SpeechRecognition) {
@@ -393,6 +601,18 @@ memoText.addEventListener("input", () => {
 
 voiceBtnList.addEventListener("click", toggleVoiceInput);
 voiceBtnMemo.addEventListener("click", toggleVoiceInput);
+
+backupExportBtn.addEventListener("click", exportBackup);
+backupImportBtn.addEventListener("click", () => {
+  hideBackupMessage();
+  backupFileInput.value = "";
+  backupFileInput.click();
+});
+backupFileInput.addEventListener("change", () => {
+  const file = backupFileInput.files && backupFileInput.files[0];
+  if (!file) return;
+  importBackupFromFile(file);
+});
 
 // ===== 起動 =====
 document.body.dataset.mode = "shopping";
