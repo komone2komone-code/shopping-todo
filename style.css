@@ -288,6 +288,72 @@ body[data-mode="todo"] .item-check {
   outline-offset: 1px;
 }
 
+.backup-section {
+  margin-top: 28px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fafafa;
+}
+
+.backup-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.backup-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.backup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn-backup {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.backup-file {
+  display: none;
+}
+
+.backup-message {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.backup-message.hidden {
+  display: none;
+}
+
+.backup-message.error {
+  color: var(--danger);
+}
+
+.backup-message.success {
+  color: #2a8a4a;
+}
+
 .tab-bar {
   position: fixed;
   left: 0;

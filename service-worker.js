@@ -1,5 +1,5 @@
 // キャッシュ名（中身を変えたらバージョンを上げる）
-const CACHE_NAME = "shopping-todo-v2";
+const CACHE_NAME = "shopping-todo-v3";
 
 const ASSETS = [
   "./",
