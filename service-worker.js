@@ -1,5 +1,5 @@
 // キャッシュ名（中身を変えたらバージョンを上げる）
-const CACHE_NAME = "shopping-todo-v4";
+const CACHE_NAME = "shopping-todo-v5";
 
 const ASSETS = [
   "./",
@@ -7,8 +7,8 @@ const ASSETS = [
   "./style.css",
   "./script.js",
   "./manifest.json",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
+  "./icons/memo-icon-192.png",
+  "./icons/memo-icon-512.png",
 ];
 
 self.addEventListener("install", (event) => {

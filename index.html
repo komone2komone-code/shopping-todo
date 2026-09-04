@@ -8,8 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>買い物＆記憶メモリ＆メモ</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/memo-icon-192.png">
+  <link rel="apple-touch-icon" href="icons/memo-icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-mode="memo">
@@ -17,7 +17,10 @@
     <header class="header">
       <div class="header-top">
         <h1 id="page-title">メモ</h1>
-        <button type="button" id="memory-add-btn" class="btn-memory-add" aria-label="ブロックを追加">＋</button>
+        <div class="header-actions">
+          <button type="button" id="handover-btn" class="btn-handover">引き継ぎ</button>
+          <button type="button" id="memory-add-btn" class="btn-memory-add" aria-label="ブロックを追加">＋</button>
+        </div>
       </div>
       <form id="add-form" class="add-form">
         <button type="button" id="voice-btn-list" class="btn-voice" aria-label="音声入力">
@@ -79,13 +82,13 @@
 
         <section class="backup-section" aria-labelledby="backup-title">
           <h2 id="backup-title" class="backup-title">データのバックアップ</h2>
-          <p class="backup-desc">買い物・TODO・メモをまとめて保存・復元できます</p>
+          <p class="backup-desc">買い物・記憶メモリ・メモをまとめて保存・復元できます</p>
           <div class="backup-actions">
             <button type="button" id="backup-export" class="btn-backup">
               バックアップを書き出す
             </button>
             <button type="button" id="backup-import" class="btn-backup">
-              バックアップを読み込む
+              バックアップから復元
             </button>
           </div>
           <input
@@ -146,6 +149,59 @@
       placeholder="メモを入力"
     ></textarea>
   </div>
+
+  <dialog class="app-dialog" id="handover-dialog" aria-labelledby="handover-title">
+    <div class="handover-panel">
+      <div class="dialog-header">
+        <h2 id="handover-title">引き継ぎ</h2>
+        <button type="button" id="handover-close-x" class="btn-dialog-x" aria-label="閉じる">×</button>
+      </div>
+
+      <section class="handover-block">
+        <h3>普段のバックアップ</h3>
+        <ol class="handover-steps">
+          <li>買い物・記憶メモリ・メモを使う</li>
+          <li>「バックアップを書き出す」を押す</li>
+          <li>JSONがダウンロードされたことを確認</li>
+          <li>Google Driveへ保存</li>
+        </ol>
+        <p class="handover-done">これでバックアップ完了</p>
+      </section>
+
+      <section class="handover-block">
+        <h3>スマホを買い替えたとき</h3>
+        <ol class="handover-steps">
+          <li>新しいスマホで「メモアプリ」を開く</li>
+          <li>「バックアップから復元」を押す</li>
+          <li>Google Driveの最新JSONを選ぶ</li>
+          <li>確認して復元</li>
+        </ol>
+        <p class="handover-done">買い物・記憶メモリ・メモが戻ります</p>
+      </section>
+
+      <p class="handover-note">大切：内容を追加・変更したら、ときどきバックアップしてください</p>
+
+      <button type="button" id="handover-export" class="btn-handover-export">今すぐバックアップを書き出す</button>
+      <button type="button" id="handover-close" class="btn-handover-close">閉じる</button>
+    </div>
+  </dialog>
+
+  <dialog class="app-dialog" id="restore-dialog" aria-labelledby="restore-title">
+    <div class="handover-panel">
+      <div class="dialog-header">
+        <h2 id="restore-title">復元の確認</h2>
+        <button type="button" id="restore-close-x" class="btn-dialog-x" aria-label="閉じる">×</button>
+      </div>
+      <p class="restore-warning">現在のデータがあります。先にバックアップしてください</p>
+      <button type="button" id="restore-export" class="btn-handover-export">今のデータを書き出す</button>
+      <label class="restore-check-label">
+        <input type="checkbox" id="restore-confirm-check">
+        バックアップファイルが保存されたことを確認しました
+      </label>
+      <button type="button" id="restore-continue" class="btn-handover-export" disabled>復元を続ける</button>
+      <button type="button" id="restore-cancel" class="btn-handover-close">閉じる</button>
+    </div>
+  </dialog>
 
   <script src="script.js"></script>
 </body>

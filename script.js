@@ -4,7 +4,8 @@ const STORAGE_TODO = "todoItems";
 const STORAGE_MEMO = "memoText";
 const STORAGE_MEMORY = "memoryBlocks";
 const STORAGE_TEMP_BACKUP = "backupRestoreTemp";
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
+const BACKUP_VERSION_LEGACY = 1;
 const MEMORY_INITIAL_SMALL_COUNT = 10;
 const JUMBLE_ID = "jumble";
 const JUMBLE_TITLE = "ごちゃまぜ覚書き";
@@ -32,6 +33,17 @@ const backupExportBtn = document.getElementById("backup-export");
 const backupImportBtn = document.getElementById("backup-import");
 const backupFileInput = document.getElementById("backup-file");
 const backupMessage = document.getElementById("backup-message");
+const handoverBtn = document.getElementById("handover-btn");
+const handoverDialog = document.getElementById("handover-dialog");
+const handoverCloseX = document.getElementById("handover-close-x");
+const handoverClose = document.getElementById("handover-close");
+const handoverExport = document.getElementById("handover-export");
+const restoreDialog = document.getElementById("restore-dialog");
+const restoreCloseX = document.getElementById("restore-close-x");
+const restoreCancel = document.getElementById("restore-cancel");
+const restoreExport = document.getElementById("restore-export");
+const restoreConfirmCheck = document.getElementById("restore-confirm-check");
+const restoreContinue = document.getElementById("restore-continue");
 const memoryAddBtn = document.getElementById("memory-add-btn");
 const memoryJumble = document.getElementById("memory-jumble");
 const memoryJumblePreview = document.getElementById("memory-jumble-preview");
@@ -51,6 +63,7 @@ let memoContent = loadMemo();
 let memoryData = loadMemory();
 let memoryDetailOpen = false;
 let currentDetailId = null;
+let pendingRestore = null;
 let recognition = null;
 let isListening = false;
 let speechSupported = false;
@@ -464,24 +477,10 @@ function validateBackupData(data) {
   if (!data || typeof data !== "object") {
     return { ok: false, message: "このファイルはバックアップとして使えません。" };
   }
-  if (!("shopping" in data) || !("todo" in data) || !("memo" in data)) {
-    return {
-      ok: false,
-      message: "このアプリで作ったバックアップではありません。買い物・TODO・メモが入ったファイルを選んでください。",
-    };
-  }
-  if (typeof data.version !== "number" || data.version !== BACKUP_VERSION) {
+  if (typeof data.version !== "number") {
     return {
       ok: false,
       message: "対応していないバックアップ形式です。このアプリで書き出したファイルを選んでください。",
-    };
-  }
-  const shopping = normalizeItems(data.shopping);
-  const todo = normalizeItems(data.todo);
-  if (shopping === null || todo === null) {
-    return {
-      ok: false,
-      message: "ファイルの内容が壊れているか、形式が正しくありません。",
     };
   }
   if (typeof data.memo !== "string") {
@@ -490,11 +489,63 @@ function validateBackupData(data) {
       message: "メモのデータ形式が正しくありません。",
     };
   }
+  const shopping = normalizeItems(data.shopping);
+  if (shopping === null) {
+    return {
+      ok: false,
+      message: "ファイルの内容が壊れているか、形式が正しくありません。",
+    };
+  }
+
+  if (data.version === BACKUP_VERSION) {
+    if (!("memory" in data) || !("exportedAt" in data)) {
+      return {
+        ok: false,
+        message: "このアプリで作ったバックアップではありません。買い物・記憶メモリ・メモが入ったファイルを選んでください。",
+      };
+    }
+    const memory = normalizeMemory(data.memory);
+    if (memory === null) {
+      return {
+        ok: false,
+        message: "記憶メモリのデータ形式が正しくありません。",
+      };
+    }
+    return {
+      ok: true,
+      kind: "v2",
+      shopping,
+      memory,
+      memo: data.memo,
+    };
+  }
+
+  if (data.version === BACKUP_VERSION_LEGACY) {
+    if (!("todo" in data)) {
+      return {
+        ok: false,
+        message: "このアプリで作ったバックアップではありません。買い物・TODO・メモが入ったファイルを選んでください。",
+      };
+    }
+    const todo = normalizeItems(data.todo);
+    if (todo === null) {
+      return {
+        ok: false,
+        message: "ファイルの内容が壊れているか、形式が正しくありません。",
+      };
+    }
+    return {
+      ok: true,
+      kind: "v1",
+      shopping,
+      todo,
+      memo: data.memo,
+    };
+  }
+
   return {
-    ok: true,
-    shopping,
-    todo,
-    memo: data.memo,
+    ok: false,
+    message: "対応していないバックアップ形式です。このアプリで書き出したファイルを選んでください。",
   };
 }
 
@@ -505,13 +556,13 @@ function exportBackup() {
     version: BACKUP_VERSION,
     exportedAt: now.toISOString(),
     shopping: shoppingItems,
-    todo: todoItems,
+    memory: memoryData,
     memo: memoText.value,
   };
 
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: "application/json" });
-  const filename = `shopping-todo-backup-${formatDateForFilename(now)}.json`;
+  const filename = `memo-app-backup-${formatDateForFilename(now)}.json`;
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement("a");
@@ -526,17 +577,39 @@ function exportBackup() {
   showBackupMessage(`「${filename}」を書き出しました。`, "success");
 }
 
+function isMemoryUnused(data) {
+  if (!data || !data.jumble || !Array.isArray(data.blocks)) return true;
+  if ((data.jumble.body || "").trim()) return false;
+  return data.blocks.every(
+    (block) => !(block.title || "").trim() && !(block.body || "").trim()
+  );
+}
+
+function hasExistingUserData() {
+  if (shoppingItems.length > 0) return true;
+  if ((memoText.value || "").trim()) return true;
+  if (!isMemoryUnused(memoryData)) return true;
+  return false;
+}
+
 function saveTempBackup() {
   const snapshot = {
     shopping: shoppingItems,
     todo: todoItems,
     memo: memoText.value,
+    memory: memoryData,
     savedAt: new Date().toISOString(),
   };
   localStorage.setItem(STORAGE_TEMP_BACKUP, JSON.stringify(snapshot));
 }
 
-function applyImportedData(shopping, todo, memo) {
+function refreshAfterImport() {
+  renderList(shoppingListEl, shoppingEmpty, shoppingItems, "購入済み");
+  clearShoppingBtn.disabled = !shoppingItems.some((i) => i.done);
+  if (mode === "memory") renderMemoryList();
+}
+
+function applyV1Data(shopping, todo, memo) {
   shoppingItems = shopping;
   todoItems = todo;
   memoContent = memo;
@@ -545,27 +618,93 @@ function applyImportedData(shopping, todo, memo) {
   saveItems(STORAGE_SHOPPING, shoppingItems);
   saveItems(STORAGE_TODO, todoItems);
   saveMemo(memoContent);
-
-  renderList(shoppingListEl, shoppingEmpty, shoppingItems, "購入済み");
-  clearShoppingBtn.disabled = !shoppingItems.some((i) => i.done);
+  refreshAfterImport();
 }
 
-function restoreFromTempBackup() {
+function applyV2Data(shopping, memory, memo) {
+  shoppingItems = shopping;
+  memoryData = memory;
+  memoContent = memo;
+  memoText.value = memo;
+
+  saveItems(STORAGE_SHOPPING, shoppingItems);
+  saveMemory(memoryData);
+  saveMemo(memoContent);
+  refreshAfterImport();
+}
+
+function restoreFromTempBackup(kind) {
   try {
     const raw = localStorage.getItem(STORAGE_TEMP_BACKUP);
     if (!raw) return false;
     const snapshot = JSON.parse(raw);
     const shopping = normalizeItems(snapshot.shopping);
-    const todo = normalizeItems(snapshot.todo);
-    if (shopping === null || todo === null || typeof snapshot.memo !== "string") {
-      return false;
+    const memoOk = typeof snapshot.memo === "string";
+    if (shopping === null || !memoOk) return false;
+
+    if (kind === "v2") {
+      const memory = normalizeMemory(snapshot.memory);
+      if (memory === null) return false;
+      applyV2Data(shopping, memory, snapshot.memo);
+      return true;
     }
-    applyImportedData(shopping, todo, snapshot.memo);
+
+    const todo = normalizeItems(snapshot.todo);
+    if (todo === null) return false;
+    applyV1Data(shopping, todo, snapshot.memo);
     return true;
   } catch (e) {
     console.warn("一時バックアップ復元失敗:", e);
     return false;
   }
+}
+
+function applyValidatedBackup(validated) {
+  saveTempBackup();
+  try {
+    if (validated.kind === "v2") {
+      applyV2Data(validated.shopping, validated.memory, validated.memo);
+    } else {
+      applyV1Data(validated.shopping, validated.todo, validated.memo);
+    }
+    showBackupMessage("バックアップを読み込みました。", "success");
+    return true;
+  } catch (e) {
+    console.warn("バックアップ読み込み失敗:", e);
+    restoreFromTempBackup(validated.kind);
+    showBackupMessage(
+      "読み込みに失敗したため、現在のデータは変更していません。",
+      "error"
+    );
+    return false;
+  }
+}
+
+function closeRestoreDialog() {
+  pendingRestore = null;
+  restoreConfirmCheck.checked = false;
+  restoreContinue.disabled = true;
+  if (restoreDialog.open) restoreDialog.close();
+}
+
+function openRestoreDialog(validated) {
+  pendingRestore = validated;
+  restoreConfirmCheck.checked = false;
+  restoreContinue.disabled = true;
+  restoreDialog.showModal();
+}
+
+function bindDialogBackdropClose(dialog, onClose) {
+  dialog.addEventListener("click", (event) => {
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    const inside =
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom;
+    if (!inside) onClose();
+  });
 }
 
 function importBackupFromFile(file) {
@@ -590,26 +729,12 @@ function importBackupFromFile(file) {
       return;
     }
 
-    const ok = confirm(
-      "現在の買い物・TODO・メモを、バックアップの内容で置き換えます。よろしいですか？"
-    );
-    if (!ok) {
-      showBackupMessage("読み込みをキャンセルしました。", "success");
+    if (hasExistingUserData()) {
+      openRestoreDialog(validated);
       return;
     }
 
-    try {
-      saveTempBackup();
-      applyImportedData(validated.shopping, validated.todo, validated.memo);
-      showBackupMessage("バックアップを読み込みました。", "success");
-    } catch (e) {
-      console.warn("バックアップ読み込み失敗:", e);
-      restoreFromTempBackup();
-      showBackupMessage(
-        "読み込みに失敗したため、現在のデータは変更していません。",
-        "error"
-      );
-    }
+    applyValidatedBackup(validated);
   };
 
   reader.onerror = () => {
@@ -807,6 +932,31 @@ backupFileInput.addEventListener("change", () => {
   if (!file) return;
   importBackupFromFile(file);
 });
+
+handoverBtn.addEventListener("click", () => handoverDialog.showModal());
+handoverCloseX.addEventListener("click", () => handoverDialog.close());
+handoverClose.addEventListener("click", () => handoverDialog.close());
+handoverExport.addEventListener("click", exportBackup);
+bindDialogBackdropClose(handoverDialog, () => handoverDialog.close());
+
+restoreCloseX.addEventListener("click", closeRestoreDialog);
+restoreCancel.addEventListener("click", closeRestoreDialog);
+restoreExport.addEventListener("click", exportBackup);
+restoreConfirmCheck.addEventListener("change", () => {
+  restoreContinue.disabled = !restoreConfirmCheck.checked;
+});
+restoreContinue.addEventListener("click", () => {
+  if (!pendingRestore || !restoreConfirmCheck.checked) return;
+  const validated = pendingRestore;
+  closeRestoreDialog();
+  applyValidatedBackup(validated);
+});
+restoreDialog.addEventListener("cancel", () => {
+  pendingRestore = null;
+  restoreConfirmCheck.checked = false;
+  restoreContinue.disabled = true;
+});
+bindDialogBackdropClose(restoreDialog, closeRestoreDialog);
 
 // ===== 起動 =====
 document.body.dataset.mode = "memo";
