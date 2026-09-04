@@ -2,26 +2,27 @@
 const STORAGE_SHOPPING = "shoppingItems";
 const STORAGE_TODO = "todoItems";
 const STORAGE_MEMO = "memoText";
+const STORAGE_MEMORY = "memoryBlocks";
 const STORAGE_TEMP_BACKUP = "backupRestoreTemp";
 const BACKUP_VERSION = 1;
+const MEMORY_INITIAL_SMALL_COUNT = 10;
+const JUMBLE_ID = "jumble";
+const JUMBLE_TITLE = "ごちゃまぜ覚書き";
 
 // ===== DOM参照 =====
 const pageTitle = document.getElementById("page-title");
 const addForm = document.getElementById("add-form");
 const itemInput = document.getElementById("item-input");
 const shoppingView = document.getElementById("shopping-view");
-const todoView = document.getElementById("todo-view");
+const memoryView = document.getElementById("memory-view");
 const memoView = document.getElementById("memo-view");
 const shoppingListEl = document.getElementById("shopping-list");
-const todoListEl = document.getElementById("todo-list");
 const shoppingEmpty = document.getElementById("shopping-empty");
-const todoEmpty = document.getElementById("todo-empty");
 const clearShoppingBtn = document.getElementById("clear-shopping-done");
-const clearTodoBtn = document.getElementById("clear-todo-done");
 const memoText = document.getElementById("memo-text");
 const clearMemoBtn = document.getElementById("clear-memo");
 const tabShopping = document.getElementById("tab-shopping");
-const tabTodo = document.getElementById("tab-todo");
+const tabMemory = document.getElementById("tab-memory");
 const tabMemo = document.getElementById("tab-memo");
 const voiceBtnList = document.getElementById("voice-btn-list");
 const voiceBtnMemo = document.getElementById("voice-btn-memo");
@@ -31,12 +32,25 @@ const backupExportBtn = document.getElementById("backup-export");
 const backupImportBtn = document.getElementById("backup-import");
 const backupFileInput = document.getElementById("backup-file");
 const backupMessage = document.getElementById("backup-message");
+const memoryAddBtn = document.getElementById("memory-add-btn");
+const memoryJumble = document.getElementById("memory-jumble");
+const memoryJumblePreview = document.getElementById("memory-jumble-preview");
+const memoryGrid = document.getElementById("memory-grid");
+const memoryDetail = document.getElementById("memory-detail");
+const memoryDetailBack = document.getElementById("memory-detail-back");
+const memoryDetailEdit = document.getElementById("memory-detail-edit");
+const memoryDetailFixedTitle = document.getElementById("memory-detail-fixed-title");
+const memoryDetailTitle = document.getElementById("memory-detail-title");
+const memoryDetailBody = document.getElementById("memory-detail-body");
 
 // ===== 状態 =====
-let mode = "shopping";
+let mode = "memo";
 let shoppingItems = loadItems(STORAGE_SHOPPING);
 let todoItems = loadItems(STORAGE_TODO);
 let memoContent = loadMemo();
+let memoryData = loadMemory();
+let memoryDetailOpen = false;
+let currentDetailId = null;
 let recognition = null;
 let isListening = false;
 let speechSupported = false;
@@ -48,6 +62,10 @@ const isDevHost =
   location.hostname === "localhost" || location.hostname === "127.0.0.1";
 
 // ===== localStorage =====
+function generateId() {
+  return String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7);
+}
+
 function loadItems(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -69,6 +87,71 @@ function loadMemo() {
   }
 }
 
+function createEmptyBlock() {
+  return { id: generateId(), title: "", body: "" };
+}
+
+function createDefaultMemory() {
+  const blocks = [];
+  for (let i = 0; i < MEMORY_INITIAL_SMALL_COUNT; i++) {
+    blocks.push(createEmptyBlock());
+  }
+  return {
+    version: 1,
+    jumble: { id: JUMBLE_ID, body: "" },
+    blocks,
+  };
+}
+
+function normalizeMemory(data) {
+  if (!data || typeof data !== "object") return null;
+  const jumbleBody =
+    data.jumble && typeof data.jumble.body === "string" ? data.jumble.body : "";
+  if (!Array.isArray(data.blocks)) return null;
+  const blocks = [];
+  for (const block of data.blocks) {
+    if (!block || typeof block !== "object") return null;
+    blocks.push({
+      id:
+        typeof block.id === "string" && block.id ? block.id : generateId(),
+      title: typeof block.title === "string" ? block.title : "",
+      body: typeof block.body === "string" ? block.body : "",
+    });
+  }
+  return {
+    version: 1,
+    jumble: { id: JUMBLE_ID, body: jumbleBody },
+    blocks,
+  };
+}
+
+function saveMemory(data) {
+  localStorage.setItem(STORAGE_MEMORY, JSON.stringify(data));
+}
+
+function loadMemory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_MEMORY);
+    if (!raw) {
+      const fresh = createDefaultMemory();
+      saveMemory(fresh);
+      return fresh;
+    }
+    const normalized = normalizeMemory(JSON.parse(raw));
+    if (!normalized) {
+      const fresh = createDefaultMemory();
+      saveMemory(fresh);
+      return fresh;
+    }
+    return normalized;
+  } catch (e) {
+    console.warn("記憶メモリ読み込み失敗:", e);
+    const fresh = createDefaultMemory();
+    saveMemory(fresh);
+    return fresh;
+  }
+}
+
 function saveItems(key, items) {
   localStorage.setItem(key, JSON.stringify(items));
 }
@@ -80,8 +163,6 @@ function saveMemo(text) {
 function saveCurrent() {
   if (mode === "shopping") {
     saveItems(STORAGE_SHOPPING, shoppingItems);
-  } else if (mode === "todo") {
-    saveItems(STORAGE_TODO, todoItems);
   }
 }
 
@@ -93,32 +174,29 @@ function switchMode(next) {
   document.body.dataset.mode = next;
 
   shoppingView.classList.toggle("hidden", next !== "shopping");
-  todoView.classList.toggle("hidden", next !== "todo");
+  memoryView.classList.toggle("hidden", next !== "memory");
   memoView.classList.toggle("hidden", next !== "memo");
 
   tabShopping.classList.toggle("active", next === "shopping");
-  tabTodo.classList.toggle("active", next === "todo");
+  tabMemory.classList.toggle("active", next === "memory");
   tabMemo.classList.toggle("active", next === "memo");
   tabShopping.setAttribute("aria-selected", String(next === "shopping"));
-  tabTodo.setAttribute("aria-selected", String(next === "todo"));
+  tabMemory.setAttribute("aria-selected", String(next === "memory"));
   tabMemo.setAttribute("aria-selected", String(next === "memo"));
 
   if (next === "shopping") {
     pageTitle.textContent = "買い物リスト";
     itemInput.placeholder = "買うものを入力";
     setThemeColor("#e8f4fc");
-  } else if (next === "todo") {
-    pageTitle.textContent = "TODOリスト";
-    itemInput.placeholder = "やることを入力";
-    setThemeColor("#fce8f0");
+    itemInput.value = "";
+    render();
+  } else if (next === "memory") {
+    pageTitle.textContent = "記憶メモリ";
+    setThemeColor("#efe8fc");
+    renderMemoryList();
   } else {
     pageTitle.textContent = "メモ";
     setThemeColor("#fff8e8");
-  }
-
-  if (next !== "memo") {
-    itemInput.value = "";
-    render();
   }
 
   hideVoiceStatus();
@@ -133,9 +211,6 @@ function render() {
   if (mode === "shopping") {
     renderList(shoppingListEl, shoppingEmpty, shoppingItems, "購入済み");
     clearShoppingBtn.disabled = !shoppingItems.some((i) => i.done);
-  } else if (mode === "todo") {
-    renderList(todoListEl, todoEmpty, todoItems, "完了");
-    clearTodoBtn.disabled = !todoItems.some((i) => i.done);
   }
 }
 
@@ -170,30 +245,150 @@ function renderList(ul, emptyEl, items, doneLabel) {
   });
 }
 
+function compactPreview(text) {
+  return (text || "").replace(/\s+/g, " ").trim();
+}
+
+function renderMemoryList() {
+  const jumblePreview = compactPreview(memoryData.jumble.body);
+  if (jumblePreview) {
+    memoryJumblePreview.textContent = jumblePreview;
+    memoryJumblePreview.classList.remove("memory-card-empty");
+  } else {
+    memoryJumblePreview.textContent = "思いついたことを何でも書く";
+    memoryJumblePreview.classList.add("memory-card-empty");
+  }
+
+  memoryGrid.innerHTML = "";
+  memoryData.blocks.forEach((block) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "memory-card-small";
+    btn.dataset.id = block.id;
+
+    const title = document.createElement("span");
+    title.className = "memory-card-title";
+    const titleText = block.title.trim();
+    if (titleText) {
+      title.textContent = titleText;
+    } else {
+      title.textContent = "タイトルを入力";
+      title.classList.add("memory-card-empty");
+    }
+
+    btn.appendChild(title);
+
+    const bodyPreview = compactPreview(block.body);
+    if (bodyPreview) {
+      const preview = document.createElement("span");
+      preview.className = "memory-card-preview";
+      preview.textContent = bodyPreview;
+      btn.appendChild(preview);
+    }
+
+    btn.addEventListener("click", () => openMemoryDetail(block.id));
+    memoryGrid.appendChild(btn);
+  });
+}
+
+function showMemoryDetail(id) {
+  const isJumble = id === JUMBLE_ID;
+  if (isJumble) {
+    currentDetailId = JUMBLE_ID;
+    memoryDetailFixedTitle.classList.remove("hidden");
+    memoryDetailTitle.classList.add("hidden");
+    memoryDetailBody.value = memoryData.jumble.body;
+  } else {
+    const block = memoryData.blocks.find((b) => b.id === id);
+    if (!block) return;
+    currentDetailId = block.id;
+    memoryDetailFixedTitle.classList.add("hidden");
+    memoryDetailTitle.classList.remove("hidden");
+    memoryDetailTitle.value = block.title;
+    memoryDetailBody.value = block.body;
+  }
+
+  memoryDetailOpen = true;
+  document.body.classList.add("memory-detail-open");
+  memoryDetail.classList.remove("hidden");
+}
+
+function hideMemoryDetail() {
+  memoryDetailOpen = false;
+  currentDetailId = null;
+  memoryDetail.classList.add("hidden");
+  document.body.classList.remove("memory-detail-open");
+  if (mode === "memory") renderMemoryList();
+}
+
+function openMemoryDetail(id) {
+  if (memoryDetailOpen) {
+    showMemoryDetail(id);
+    return;
+  }
+  history.pushState({ memoryDetail: id }, "");
+  showMemoryDetail(id);
+}
+
+function requestCloseMemoryDetail() {
+  if (!memoryDetailOpen) return;
+  history.back();
+}
+
+function saveMemoryDetailFromForm() {
+  if (!memoryDetailOpen || !currentDetailId) return;
+
+  if (currentDetailId === JUMBLE_ID) {
+    memoryData.jumble.body = memoryDetailBody.value;
+  } else {
+    const block = memoryData.blocks.find((b) => b.id === currentDetailId);
+    if (!block) return;
+    block.title = memoryDetailTitle.value;
+    block.body = memoryDetailBody.value;
+  }
+  saveMemory(memoryData);
+}
+
+function focusMemoryEditor() {
+  if (!memoryDetailOpen) return;
+  if (currentDetailId === JUMBLE_ID) {
+    memoryDetailBody.focus();
+    return;
+  }
+  if (!memoryDetailTitle.value.trim()) {
+    memoryDetailTitle.focus();
+  } else {
+    memoryDetailBody.focus();
+  }
+}
+
+function addMemoryBlock() {
+  if (mode !== "memory" || memoryDetailOpen) return;
+  memoryData.blocks.push(createEmptyBlock());
+  saveMemory(memoryData);
+  renderMemoryList();
+}
+
 // ===== 操作 =====
 function addItem(text) {
   const trimmed = text.trim();
   if (!trimmed) return;
+  if (mode !== "shopping") return;
 
   const item = {
-    id: String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7),
+    id: generateId(),
     text: trimmed,
     done: false,
   };
 
-  if (mode === "shopping") {
-    shoppingItems.unshift(item);
-    saveItems(STORAGE_SHOPPING, shoppingItems);
-  } else {
-    todoItems.unshift(item);
-    saveItems(STORAGE_TODO, todoItems);
-  }
+  shoppingItems.unshift(item);
+  saveItems(STORAGE_SHOPPING, shoppingItems);
   render();
 }
 
 function toggleDone(id) {
-  const items = mode === "shopping" ? shoppingItems : todoItems;
-  const target = items.find((i) => i.id === id);
+  if (mode !== "shopping") return;
+  const target = shoppingItems.find((i) => i.id === id);
   if (!target) return;
   target.done = !target.done;
   saveCurrent();
@@ -201,32 +396,20 @@ function toggleDone(id) {
 }
 
 function deleteOne(id) {
+  if (mode !== "shopping") return;
   if (!confirm("この項目を削除しますか？")) return;
 
-  if (mode === "shopping") {
-    shoppingItems = shoppingItems.filter((i) => i.id !== id);
-    saveItems(STORAGE_SHOPPING, shoppingItems);
-  } else {
-    todoItems = todoItems.filter((i) => i.id !== id);
-    saveItems(STORAGE_TODO, todoItems);
-  }
+  shoppingItems = shoppingItems.filter((i) => i.id !== id);
+  saveItems(STORAGE_SHOPPING, shoppingItems);
   render();
 }
 
 function clearDone() {
-  const label =
-    mode === "shopping"
-      ? "購入済みの項目をすべて削除しますか？"
-      : "完了済みの項目をすべて削除しますか？";
-  if (!confirm(label)) return;
+  if (mode !== "shopping") return;
+  if (!confirm("購入済みの項目をすべて削除しますか？")) return;
 
-  if (mode === "shopping") {
-    shoppingItems = shoppingItems.filter((i) => !i.done);
-    saveItems(STORAGE_SHOPPING, shoppingItems);
-  } else {
-    todoItems = todoItems.filter((i) => !i.done);
-    saveItems(STORAGE_TODO, todoItems);
-  }
+  shoppingItems = shoppingItems.filter((i) => !i.done);
+  saveItems(STORAGE_SHOPPING, shoppingItems);
   render();
 }
 
@@ -269,7 +452,7 @@ function normalizeItems(items) {
       id:
         typeof item.id === "string" && item.id
           ? item.id
-          : String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7),
+          : generateId(),
       text: item.text,
       done: Boolean(item.done),
     });
@@ -363,11 +546,8 @@ function applyImportedData(shopping, todo, memo) {
   saveItems(STORAGE_TODO, todoItems);
   saveMemo(memoContent);
 
-  // 買い物・TODO一覧を更新（メモ画面でも裏で更新）
   renderList(shoppingListEl, shoppingEmpty, shoppingItems, "購入済み");
   clearShoppingBtn.disabled = !shoppingItems.some((i) => i.done);
-  renderList(todoListEl, todoEmpty, todoItems, "完了");
-  clearTodoBtn.disabled = !todoItems.some((i) => i.done);
 }
 
 function restoreFromTempBackup() {
@@ -419,7 +599,6 @@ function importBackupFromFile(file) {
     }
 
     try {
-      // 読み込み直前に現在データを一時保存
       saveTempBackup();
       applyImportedData(validated.shopping, validated.todo, validated.memo);
       showBackupMessage("バックアップを読み込みました。", "success");
@@ -468,7 +647,7 @@ function initSpeech() {
       memoText.value = current ? current + text : text;
       memoContent = memoText.value;
       saveMemo(memoContent);
-    } else {
+    } else if (mode === "shopping") {
       itemInput.value = text;
       itemInput.focus();
     }
@@ -587,11 +766,26 @@ addForm.addEventListener("submit", (e) => {
 });
 
 tabShopping.addEventListener("click", () => switchMode("shopping"));
-tabTodo.addEventListener("click", () => switchMode("todo"));
+tabMemory.addEventListener("click", () => switchMode("memory"));
 tabMemo.addEventListener("click", () => switchMode("memo"));
 clearShoppingBtn.addEventListener("click", clearDone);
-clearTodoBtn.addEventListener("click", clearDone);
 clearMemoBtn.addEventListener("click", clearMemo);
+memoryAddBtn.addEventListener("click", addMemoryBlock);
+memoryJumble.addEventListener("click", () => openMemoryDetail(JUMBLE_ID));
+memoryJumble.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    openMemoryDetail(JUMBLE_ID);
+  }
+});
+memoryDetailBack.addEventListener("click", requestCloseMemoryDetail);
+memoryDetailEdit.addEventListener("click", focusMemoryEditor);
+memoryDetailTitle.addEventListener("input", saveMemoryDetailFromForm);
+memoryDetailBody.addEventListener("input", saveMemoryDetailFromForm);
+
+window.addEventListener("popstate", () => {
+  if (memoryDetailOpen) hideMemoryDetail();
+});
 
 memoText.value = memoContent;
 memoText.addEventListener("input", () => {
@@ -615,7 +809,7 @@ backupFileInput.addEventListener("change", () => {
 });
 
 // ===== 起動 =====
-document.body.dataset.mode = "shopping";
-render();
+document.body.dataset.mode = "memo";
+switchMode("memo");
 initSpeech();
 setupServiceWorker();

@@ -3,19 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#e8f4fc">
+  <meta name="theme-color" content="#fff8e8">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>買い物＆TODO</title>
+  <title>買い物＆記憶メモリ＆メモ</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-mode="memo">
   <div class="app">
     <header class="header">
-      <h1 id="page-title">買い物リスト</h1>
+      <div class="header-top">
+        <h1 id="page-title">メモ</h1>
+        <button type="button" id="memory-add-btn" class="btn-memory-add" aria-label="ブロックを追加">＋</button>
+      </div>
       <form id="add-form" class="add-form">
         <button type="button" id="voice-btn-list" class="btn-voice" aria-label="音声入力">
           <svg class="icon-mic" viewBox="0 0 24 24" aria-hidden="true">
@@ -39,7 +42,7 @@
     </header>
 
     <main class="main">
-      <section id="shopping-view" class="list-view" data-theme="shopping">
+      <section id="shopping-view" class="list-view hidden" data-theme="shopping">
         <ul id="shopping-list" class="item-list"></ul>
         <p id="shopping-empty" class="empty-message">まだ何もありません</p>
         <button type="button" id="clear-shopping-done" class="btn-clear">
@@ -47,15 +50,15 @@
         </button>
       </section>
 
-      <section id="todo-view" class="list-view hidden" data-theme="todo">
-        <ul id="todo-list" class="item-list"></ul>
-        <p id="todo-empty" class="empty-message">まだ何もありません</p>
-        <button type="button" id="clear-todo-done" class="btn-clear">
-          完了済みをまとめて削除
-        </button>
+      <section id="memory-view" class="memory-view hidden" data-theme="memory">
+        <article id="memory-jumble" class="memory-card memory-jumble" tabindex="0" role="button">
+          <h2 class="memory-card-title">ごちゃまぜ覚書き</h2>
+          <p id="memory-jumble-preview" class="memory-card-preview memory-card-empty">思いついたことを何でも書く</p>
+        </article>
+        <div id="memory-grid" class="memory-grid"></div>
       </section>
 
-      <section id="memo-view" class="memo-view hidden" data-theme="memo">
+      <section id="memo-view" class="memo-view" data-theme="memo">
         <div class="memo-toolbar">
           <button type="button" id="voice-btn-memo" class="btn-voice" aria-label="音声入力">
             <svg class="icon-mic" viewBox="0 0 24 24" aria-hidden="true">
@@ -97,21 +100,21 @@
     </main>
 
     <nav class="tab-bar" role="tablist">
-      <button type="button" id="tab-shopping" class="tab-btn active" role="tab" aria-selected="true">
+      <button type="button" id="tab-shopping" class="tab-btn" role="tab" aria-selected="false">
         <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M7 10l1.2 9h7.6L17 10H7z" fill="#a8d8f0" stroke="#6bb8e0" stroke-width="1.2" stroke-linejoin="round"/>
           <path d="M9 10V7a3 3 0 0 1 6 0v3" fill="none" stroke="#6bb8e0" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
         <span class="tab-label">買い物</span>
       </button>
-      <button type="button" id="tab-todo" class="tab-btn" role="tab" aria-selected="false">
+      <button type="button" id="tab-memory" class="tab-btn" role="tab" aria-selected="false">
         <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" fill="#f8c8dc" stroke="#e89ab8" stroke-width="1.2"/>
-          <path d="M8 12.5l2.5 2.5 5.5-5.5" fill="none" stroke="#d86a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="4" y="5" width="16" height="14" rx="3" fill="#d8c8f8" stroke="#9b7ed8" stroke-width="1.2"/>
+          <path d="M8 10h8M8 13h5" fill="none" stroke="#7a58c4" stroke-width="1.6" stroke-linecap="round"/>
         </svg>
-        <span class="tab-label">TODO</span>
+        <span class="tab-label">記憶メモリ</span>
       </button>
-      <button type="button" id="tab-memo" class="tab-btn" role="tab" aria-selected="false">
+      <button type="button" id="tab-memo" class="tab-btn active" role="tab" aria-selected="true">
         <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 8a5 5 0 0 1 10 0c0 2.5-1.5 4-3 5.5H8C6.5 12 5 10.5 5 8z" fill="#fff3b0" stroke="#e8c84a" stroke-width="1.2" stroke-linejoin="round"/>
           <circle cx="9" cy="9" r="0.8" fill="#e8c84a"/>
@@ -121,6 +124,27 @@
         <span class="tab-label">メモ</span>
       </button>
     </nav>
+  </div>
+
+  <div id="memory-detail" class="memory-detail hidden">
+    <div class="memory-detail-bar">
+      <button type="button" id="memory-detail-back" class="btn-memory-nav">戻る</button>
+      <button type="button" id="memory-detail-edit" class="btn-memory-nav">編集</button>
+    </div>
+    <h2 id="memory-detail-fixed-title" class="memory-detail-fixed-title hidden">ごちゃまぜ覚書き</h2>
+    <input
+      type="text"
+      id="memory-detail-title"
+      class="memory-detail-title-input"
+      placeholder="タイトルを入力"
+      maxlength="80"
+      autocomplete="off"
+    >
+    <textarea
+      id="memory-detail-body"
+      class="memory-detail-body"
+      placeholder="メモを入力"
+    ></textarea>
   </div>
 
   <script src="script.js"></script>

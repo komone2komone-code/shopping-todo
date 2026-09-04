@@ -1,7 +1,7 @@
 {
-  "name": "買い物＆TODO＆メモ",
-  "short_name": "買物TODO",
-  "description": "買い物リスト・TODOリスト・メモのシンプルなWebアプリ",
+  "name": "買い物＆記憶メモリ＆メモ",
+  "short_name": "メモアプリ",
+  "description": "買い物リスト・記憶メモリ・メモのシンプルなWebアプリ",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
