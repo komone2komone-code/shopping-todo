@@ -540,17 +540,18 @@ body.memory-detail-open .tab-bar {
   display: flex;
   max-width: 560px;
   margin: 0 auto;
+  overflow-x: hidden;
   padding-bottom: var(--safe-bottom);
   border-top: 1px solid var(--border);
   background: #fff;
 }
 
 .tab-btn {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
-  min-height: 56px;
-  padding: 6px 4px;
-  font-size: 12px;
+  min-height: 64px;
+  padding: 8px 4px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-muted);
   border: none;
@@ -570,9 +571,16 @@ body.memory-detail-open .tab-bar {
 }
 
 .tab-label {
+  display: block;
+  width: 100%;
   white-space: nowrap;
   text-align: center;
   line-height: 1.2;
+}
+
+.tab-label-memory {
+  white-space: normal;
+  line-height: 1.15;
 }
 
 .tab-btn.active {
@@ -624,8 +632,3 @@ body[data-mode="memo"] .tab-btn.active {
   }
 }
 
-@media (max-width: 360px) {
-  .tab-btn {
-    font-size: 11px;
-  }
-}
