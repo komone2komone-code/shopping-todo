@@ -224,6 +224,21 @@ body[data-mode="memo"] .add-form {
   display: none;
 }
 
+html[data-boot-mode="shopping"] #memo-view,
+html[data-boot-mode="shopping"] #memory-view,
+html[data-boot-mode="memory"] #memo-view,
+html[data-boot-mode="memory"] #shopping-view {
+  display: none;
+}
+
+html[data-boot-mode="shopping"] #shopping-view {
+  display: block;
+}
+
+html[data-boot-mode="memory"] #memory-view {
+  display: flex;
+}
+
 .item-list {
   list-style: none;
 }
@@ -305,26 +320,6 @@ body[data-mode="memo"] .add-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.memory-jumble {
-  display: flex;
-  flex-direction: column;
-  min-height: clamp(140px, 36dvh, 320px);
-  padding: 16px;
-  border-radius: var(--radius);
-  background: var(--memory);
-  cursor: pointer;
-}
-
-.memory-jumble .memory-card-title {
-  font-size: 1.2rem;
-}
-
-.memory-jumble .memory-card-preview {
-  flex: 1;
-  margin-top: 10px;
-  -webkit-line-clamp: 8;
 }
 
 .memory-grid {
@@ -413,17 +408,6 @@ body.memory-detail-open .tab-bar {
   border-radius: var(--radius);
   background: var(--memory);
   cursor: pointer;
-}
-
-.memory-detail-fixed-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin-bottom: 12px;
-}
-
-.memory-detail-fixed-title.hidden,
-.memory-detail-title-input.hidden {
-  display: none;
 }
 
 .memory-detail-title-input {
@@ -622,6 +606,22 @@ body[data-mode="memory"] .tab-btn.active {
 body[data-mode="memo"] .tab-btn.active {
   color: var(--memo-accent);
   background: var(--memo);
+}
+
+html[data-boot-mode="shopping"] #tab-memo.active,
+html[data-boot-mode="memory"] #tab-memo.active {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+html[data-boot-mode="shopping"] #tab-shopping {
+  color: var(--shopping-accent);
+  background: var(--shopping);
+}
+
+html[data-boot-mode="memory"] #tab-memory {
+  color: var(--memory-accent);
+  background: var(--memory);
 }
 
 @media (min-width: 561px) {

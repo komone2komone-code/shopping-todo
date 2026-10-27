@@ -4,11 +4,12 @@ const STORAGE_TODO = "todoItems";
 const STORAGE_MEMO = "memoText";
 const STORAGE_MEMORY = "memoryBlocks";
 const STORAGE_TEMP_BACKUP = "backupRestoreTemp";
+const STORAGE_LAST_MODE = "lastMode";
 const BACKUP_VERSION = 2;
 const BACKUP_VERSION_LEGACY = 1;
 const MEMORY_INITIAL_SMALL_COUNT = 10;
 const JUMBLE_ID = "jumble";
-const JUMBLE_TITLE = "ごちゃまぜ覚書き";
+const APP_MODES = ["shopping", "memory", "memo"];
 
 // ===== DOM参照 =====
 const pageTitle = document.getElementById("page-title");
@@ -45,13 +46,10 @@ const restoreExport = document.getElementById("restore-export");
 const restoreConfirmCheck = document.getElementById("restore-confirm-check");
 const restoreContinue = document.getElementById("restore-continue");
 const memoryAddBtn = document.getElementById("memory-add-btn");
-const memoryJumble = document.getElementById("memory-jumble");
-const memoryJumblePreview = document.getElementById("memory-jumble-preview");
 const memoryGrid = document.getElementById("memory-grid");
 const memoryDetail = document.getElementById("memory-detail");
 const memoryDetailBack = document.getElementById("memory-detail-back");
 const memoryDetailEdit = document.getElementById("memory-detail-edit");
-const memoryDetailFixedTitle = document.getElementById("memory-detail-fixed-title");
 const memoryDetailTitle = document.getElementById("memory-detail-title");
 const memoryDetailBody = document.getElementById("memory-detail-body");
 
@@ -173,6 +171,24 @@ function saveMemo(text) {
   localStorage.setItem(STORAGE_MEMO, text);
 }
 
+function loadLastMode() {
+  try {
+    const saved = localStorage.getItem(STORAGE_LAST_MODE);
+    if (APP_MODES.includes(saved)) return saved;
+  } catch (e) {
+    console.warn("画面の読み込み失敗:", e);
+  }
+  return "memo";
+}
+
+function saveLastMode(next) {
+  try {
+    localStorage.setItem(STORAGE_LAST_MODE, next);
+  } catch (e) {
+    console.warn("画面の保存失敗:", e);
+  }
+}
+
 function saveCurrent() {
   if (mode === "shopping") {
     saveItems(STORAGE_SHOPPING, shoppingItems);
@@ -181,9 +197,12 @@ function saveCurrent() {
 
 // ===== 画面切り替え =====
 function switchMode(next) {
+  if (!APP_MODES.includes(next)) next = "memo";
+  document.documentElement.removeAttribute("data-boot-mode");
   if (isListening) stopListening();
 
   mode = next;
+  saveLastMode(next);
   document.body.dataset.mode = next;
 
   shoppingView.classList.toggle("hidden", next !== "shopping");
@@ -263,15 +282,6 @@ function compactPreview(text) {
 }
 
 function renderMemoryList() {
-  const jumblePreview = compactPreview(memoryData.jumble.body);
-  if (jumblePreview) {
-    memoryJumblePreview.textContent = jumblePreview;
-    memoryJumblePreview.classList.remove("memory-card-empty");
-  } else {
-    memoryJumblePreview.textContent = "思いついたことを何でも書く";
-    memoryJumblePreview.classList.add("memory-card-empty");
-  }
-
   memoryGrid.innerHTML = "";
   memoryData.blocks.forEach((block) => {
     const btn = document.createElement("button");
@@ -305,21 +315,11 @@ function renderMemoryList() {
 }
 
 function showMemoryDetail(id) {
-  const isJumble = id === JUMBLE_ID;
-  if (isJumble) {
-    currentDetailId = JUMBLE_ID;
-    memoryDetailFixedTitle.classList.remove("hidden");
-    memoryDetailTitle.classList.add("hidden");
-    memoryDetailBody.value = memoryData.jumble.body;
-  } else {
-    const block = memoryData.blocks.find((b) => b.id === id);
-    if (!block) return;
-    currentDetailId = block.id;
-    memoryDetailFixedTitle.classList.add("hidden");
-    memoryDetailTitle.classList.remove("hidden");
-    memoryDetailTitle.value = block.title;
-    memoryDetailBody.value = block.body;
-  }
+  const block = memoryData.blocks.find((b) => b.id === id);
+  if (!block) return;
+  currentDetailId = block.id;
+  memoryDetailTitle.value = block.title;
+  memoryDetailBody.value = block.body;
 
   memoryDetailOpen = true;
   document.body.classList.add("memory-detail-open");
@@ -351,23 +351,15 @@ function requestCloseMemoryDetail() {
 function saveMemoryDetailFromForm() {
   if (!memoryDetailOpen || !currentDetailId) return;
 
-  if (currentDetailId === JUMBLE_ID) {
-    memoryData.jumble.body = memoryDetailBody.value;
-  } else {
-    const block = memoryData.blocks.find((b) => b.id === currentDetailId);
-    if (!block) return;
-    block.title = memoryDetailTitle.value;
-    block.body = memoryDetailBody.value;
-  }
+  const block = memoryData.blocks.find((b) => b.id === currentDetailId);
+  if (!block) return;
+  block.title = memoryDetailTitle.value;
+  block.body = memoryDetailBody.value;
   saveMemory(memoryData);
 }
 
 function focusMemoryEditor() {
   if (!memoryDetailOpen) return;
-  if (currentDetailId === JUMBLE_ID) {
-    memoryDetailBody.focus();
-    return;
-  }
   if (!memoryDetailTitle.value.trim()) {
     memoryDetailTitle.focus();
   } else {
@@ -896,13 +888,6 @@ tabMemo.addEventListener("click", () => switchMode("memo"));
 clearShoppingBtn.addEventListener("click", clearDone);
 clearMemoBtn.addEventListener("click", clearMemo);
 memoryAddBtn.addEventListener("click", addMemoryBlock);
-memoryJumble.addEventListener("click", () => openMemoryDetail(JUMBLE_ID));
-memoryJumble.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" || e.key === " ") {
-    e.preventDefault();
-    openMemoryDetail(JUMBLE_ID);
-  }
-});
 memoryDetailBack.addEventListener("click", requestCloseMemoryDetail);
 memoryDetailEdit.addEventListener("click", focusMemoryEditor);
 memoryDetailTitle.addEventListener("input", saveMemoryDetailFromForm);
@@ -959,7 +944,6 @@ restoreDialog.addEventListener("cancel", () => {
 bindDialogBackdropClose(restoreDialog, closeRestoreDialog);
 
 // ===== 起動 =====
-document.body.dataset.mode = "memo";
-switchMode("memo");
+switchMode(loadLastMode());
 initSpeech();
 setupServiceWorker();
